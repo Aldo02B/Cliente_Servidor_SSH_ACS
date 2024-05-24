@@ -1,81 +1,103 @@
- #include <stdio.h>
- #include <stdlib.h>
- #include <unistd.h>
- #include <errno.h>
- #include <string.h>
- #include <netdb.h>
- #include <sys/types.h>
- #include <netinet/in.h>
- #include <sys/socket.h>
- #define MAXDATASIZE 100
- #define MAXDATASIZE_RESP 20000
+/*
+Integrantes:  
+- Andres Urbano Andrea
+- Gomez Bolanios Luis Aldo
+Programa: Cliente que simula una conexion SSH hacia el servidor.
+Informacion: Cuando se conecta a un servidor se puede ejecutar comandos.
+Licencia: GNU General Public License v3.0
+Fecha: 24 mayo 2024 (Ultimo cambio)
+*/
 
- int main(int argc, char *argv[])
- {
-  // Estos 2 son para el comando
-  char comando[MAXDATASIZE];
-  int len_comando;
-  // Estos 2 son para la respuesta
-  int numbytes;
-  char buf[MAXDATASIZE_RESP];
+#include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
+#include <errno.h>
+#include <string.h>
+#include <netdb.h>
+#include <sys/types.h>
+#include <netinet/in.h>
+#include <sys/socket.h>
+#define MAXDATASIZE 100 // Tamanio del buffer para los comandos
+#define MAXDATASIZE_RESP 65536 // Tamanio del buffer para recibir respuesta del servidor
+#define END_SIGNAL "__COMANDO_FINAL__" // Bandera que se envia al cliente para indicar que finalizo la transmision de datos
 
-  int sockfd;  
+/*Funcion principal que ejecuta el programa*/
+int main(int argc, char *argv[]){
+  char comando[MAXDATASIZE]; // Almacena el comando ingresado por el usuario
+  int len_comando; // Almacena la longitud del comando
+  int numbytes; // Numero de bytes recibidos del servidor
+  char buf[MAXDATASIZE_RESP]; //Buffer que recibe la respuesta del servidor
+
+  int sockfd;  // Definicion de variables para el socket
   struct hostent *he;
-  struct sockaddr_in cliente; // informacion de la direccion de destino 
+  struct sockaddr_in cliente; // Informacion de la direccion de destino 
 
+  // Verifica que se haya pasado correctamente el host y el puerto
   if (argc != 3) {
     fprintf(stderr,"usage: client hostname puerto\n");
     exit(1);
   }
 
-  if ((he=gethostbyname(argv[1])) == NULL) {  // obtener informacion de host servidor 
-   perror("gethostbyname");
+  // Obtiene la informacion del host del servidor
+  if ((he=gethostbyname(argv[1])) == NULL) { 
+   perror("gethostbyname"); // Si hay un error se imprime
    exit(1);
   }
 
+  // Se crea el socket
   if ((sockfd = socket(AF_INET, SOCK_STREAM, 0)) == -1) {
    perror("socket");
    exit(1);
   }
 
-  cliente.sin_family = AF_INET; 
-  cliente.sin_port = htons( atoi(argv[2]) ); 
-  cliente.sin_addr = *((struct in_addr *)he->h_addr);
-  memset(&(cliente.sin_zero), '\0',8);  // poner a cero el resto de la estructura 
+  // Se configura la estructura cliente con la informacion del servidor
+  cliente.sin_family = AF_INET; // Familia de direcciones
+  cliente.sin_port = htons( atoi(argv[2]) );  // Puerto (se convierte a formato de red)
+  cliente.sin_addr = *((struct in_addr *)he->h_addr); // Direccion IP del servidor
+  memset(&(cliente.sin_zero), '\0',8);  // Inicializa en cero el resto de la estructura 
 
+  // Se hace el intento de conexion con el servidor
   if (connect(sockfd, (struct sockaddr *)&cliente, sizeof(struct sockaddr)) == -1) {
-   perror("connect");
+   perror("connect"); // Si ocurre una falla se imprime al usuario
    exit(1);
   }
   
-  /* Se lee el comando del teclado */
-  fgets(comando,MAXDATASIZE-1,stdin);
-  /* Se deja el ultimo caracter vacio */
-  len_comando = strlen(comando) - 1;
-  comando[len_comando] = '\0';
-  /* Se imprime el comando que ingreso el cliente */
-  printf("Comando: %s\n",comando);
+ // Se hace un ciclo para pedir los comandos al usuario
+  while (1) {
+    printf("lineadecomandos# "); // Estetica
+    fgets(comando, MAXDATASIZE - 1, stdin); // Se lee el comando ingresado
+    len_comando = strlen(comando) - 1; // Se calcula su longitud
+    comando[len_comando] = '\0'; // Se quita el caracter salto de linea (fin de cadena)
 
-  /* Se envia el comando al server */
-  if(send(sockfd,comando, len_comando, 0) == -1) {
-   perror("send()");
-   exit(1);
-  } else 
-   printf("Comando enviado...\n");
+    // Si el usuario teclea salir o exit, se termina el programa
+    if (strcmp(comando, "salir") == 0 || strcmp(comando, "exit") == 0) {
+      break;
+    }
 
-  // Si el send no devuelve error continua y lo que falta por hacer
-  // es leer la respuesta
-  if ((numbytes=recv(sockfd, buf, MAXDATASIZE_RESP-1, 0)) == -1) {
-   perror("recv");
-   exit(1);
+    // Se envia el comando al servidor
+    if (send(sockfd, comando, len_comando, 0) == -1) {
+      perror("send()");
+      exit(1);
+    }
+
+    // Si el send no devuelve error continua, se lee la respuesta
+    while (1) {
+      if ((numbytes = recv(sockfd, buf, MAXDATASIZE_RESP - 1, 0)) == -1) {
+        perror("recv");
+        exit(1);
+      }
+      buf[numbytes] = '\0';
+
+      // Verificar si es la senial de finalizacion (para saber si se envio la respuesta completa)
+      if (strstr(buf, END_SIGNAL) != NULL) {
+        buf[strlen(buf) - strlen(END_SIGNAL)] = '\0'; // Se remueve la senial de finalizacion
+        printf("Recibido:\n%s\n", buf);
+        break;
+      }
+      printf("Recibido:\n%s\n", buf);
+    }
   }
-  printf("numbytes=%d\n",numbytes);
-  buf[numbytes] = '\0';
-  printf("Recibido:\n%s\n",buf);
-
-  // Si el recv no devuelve error continua y lo que falta por hacer
-  // es cerrar el file descriptor del cliente
+  // Si se termina el programa se cierra el file descriptor del cliente
   close(sockfd);
-
   return 0;
 } 
