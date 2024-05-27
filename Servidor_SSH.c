@@ -5,7 +5,7 @@ Integrantes:
 Programa: Servidor que simula una conexion SSH por parte del cliente.
 Informacion: Cuando se conecta un cliente puede ejecutar los comandos del servidor.
 Licencia: GNU General Public License v3.0
-Fecha: 24 mayo 2024 (Ultimo cambio)
+Fecha: 27 mayo 2024 (Ultimo cambio)
 */
 
 #include <stdio.h>
@@ -19,7 +19,7 @@ Fecha: 24 mayo 2024 (Ultimo cambio)
 #include <arpa/inet.h>
 #include <sys/wait.h>
 #include <signal.h>
-#define LENGTH 20000 // Define el tamanio del buffer
+#define LENGTH 200000 // Define el tamanio del buffer
 #define END_SIGNAL "__COMANDO_FINAL__" // Bandera que se envia al cliente para indicar que finalizo la transmision de datos
 
 /*La funcion ejecuta el comando recibido y se envia al cliente*/

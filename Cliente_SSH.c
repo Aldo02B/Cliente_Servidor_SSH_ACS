@@ -5,7 +5,7 @@ Integrantes:
 Programa: Cliente que simula una conexion SSH hacia el servidor.
 Informacion: Cuando se conecta a un servidor se puede ejecutar comandos.
 Licencia: GNU General Public License v3.0
-Fecha: 24 mayo 2024 (Ultimo cambio)
+Fecha: 27 mayo 2024 (Ultimo cambio)
 */
 
 #include <stdio.h>
@@ -18,7 +18,7 @@ Fecha: 24 mayo 2024 (Ultimo cambio)
 #include <netinet/in.h>
 #include <sys/socket.h>
 #define MAXDATASIZE 100 // Tamanio del buffer para los comandos
-#define MAXDATASIZE_RESP 65536 // Tamanio del buffer para recibir respuesta del servidor
+#define MAXDATASIZE_RESP 200000 // Tamanio del buffer para recibir respuesta del servidor
 #define END_SIGNAL "__COMANDO_FINAL__" // Bandera que se envia al cliente para indicar que finalizo la transmision de datos
 
 /*Funcion principal que ejecuta el programa*/
@@ -71,6 +71,7 @@ int main(int argc, char *argv[]){
 
     // Si el usuario teclea salir o exit, se termina el programa
     if (strcmp(comando, "salir") == 0 || strcmp(comando, "exit") == 0) {
+      printf("Saliendo.....");
       break;
     }
 
@@ -82,7 +83,7 @@ int main(int argc, char *argv[]){
 
     // Si el send no devuelve error continua, se lee la respuesta
     while (1) {
-      if ((numbytes = recv(sockfd, buf, MAXDATASIZE_RESP - 1, 0)) == -1) {
+      if((numbytes = recv(sockfd, buf, MAXDATASIZE_RESP - 1, 0)) == -1) {
         perror("recv");
         exit(1);
       }
@@ -91,7 +92,7 @@ int main(int argc, char *argv[]){
       // Verificar si es la senial de finalizacion (para saber si se envio la respuesta completa)
       if (strstr(buf, END_SIGNAL) != NULL) {
         buf[strlen(buf) - strlen(END_SIGNAL)] = '\0'; // Se remueve la senial de finalizacion
-        printf("Recibido:\n%s\n", buf);
+        printf("Recibido\n%s\n", buf);
         break;
       }
       printf("Recibido:\n%s\n", buf);
